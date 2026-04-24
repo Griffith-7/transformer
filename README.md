@@ -1,25 +1,29 @@
-# Spiking Hyperbolic Transformer Evolution
+# Evolution of Spiking Hyperbolic Transformers
 
-This repository contains five generations of Transformer architectures, from standard Euclidean math to **Adaptive Hyperbolic Turbo (AHT)**.
+This repository documents a three-phase research evolution from standard Euclidean transformers to advanced Hybrid-Manifold architectures.
 
-## 🚀 Performance Summary
-| Model | Type | Efficiency | Key Innovation |
+## 🔬 Scientific Overview
+This project explores the intersection of **Riemannian Geometry** and **Neuromorphic Spiking Networks**. While standard Transformers (T1) remain the performance baseline on modern GPUs, our Adaptive Hyperbolic Turbo (T3) architecture investigates more efficient ways to encode linguistic hierarchies.
+
+## 🚀 The Three Generations
+| Model | Code Name | Primary Geometry | Key Feature |
 | :--- | :--- | :--- | :--- |
-| **Transformer 1** | Standard | Baseline | Standard Euclidean Transformer |
-| **Transformer 2** | Spiking Lorentz | Compact | Lorentz Manifold + Surrogate Spiking |
-| **Transformer 3 (AHT)** | **Adaptive Turbo** | **Elite** | **Minkowski Speedup + Learnable Curvature** |
+| **Phase 1** | Standard | Euclidean | Industrial Baseline (Fastest) |
+| **Phase 2** | SLT | Lorentz | Pure Hyperbolic reasoning |
+| **Phase 3** | **AHT** | **Hybrid** | **Adaptive Minkowski + Spiking** |
 
-## 📂 Project Structure
-- **`transformer 1/`**: Reference Euclidean Model.
-- **`transformer 2/`**: Spiking Lorentz Model (Hardened).
-- **`transformer 3/`**: **Adaptive Hyperbolic Turbo (AHT)** - The research-grade champion.
+## 📊 Honest Performance Trade-offs
+A third-party audit comparing these architectures on WikiText-2 reveals the following:
+
+- **Speed:** **Transformer 1** is significantly faster (3x-5x) because it uses fused CUDA kernels (`scaled_dot_product_attention`). Transformer 3 uses custom manifold math which is more computationally intensive.
+- **Complexity:** **Transformer 3** is the most sophisticated, utilizing learnable per-head curvature (`k`) and a learned blending gate (`alpha`) to navigate between flat and hierarchical data.
+- **Efficiency:** All models in this repository now implement **Weight Tying** and **AMP (FP16)** to maximize parameter utility and hardware speed.
 
 ## 🛠 Features (Turbo v5)
-- **Minkowski Speedup:** Uses the bilinear inner-product for O(T²) hyperbolic distance (8x faster).
-- **Learnable Curvature (k):** Each attention head learns its own manifold curvature.
-- **Adaptive Geometry Scaling:** L2-Normalization pre-projection for maximum stability.
-- **Warmup + Cosine LR:** Research-grade scheduling for complex manifold convergence.
-- **Weight Tying:** 38% more parameter-efficient than standard transformers.
+- **Minkowski Speedup:** Optimized O(T²) hyperbolic distance calculation (recovering speed from previous custom implementations).
+- **Learnable Curvature (k):** Each attention head learns its own manifold curvature (softplus-stabilized).
+- **Adaptive Blending:** A learned gate (`alpha`) that chooses the optimal geometry for every token.
+- **Hardened Stability:** Implements L2-normalization pre-projection and tight gradient clipping to prevent manifold instability.
 
-## 📈 The Result
-The ultimate model (**Transformer 3 AHT**) matches the speed of standard Transformers while maintaining the superior hierarchical reasoning of Hyperbolic geometry. It achieves higher accuracy-per-parameter than any Euclidean baseline in this project.
+## 🏁 Conclusion
+This repository is a research exploration. If you need raw throughput, use **Transformer 1**. If you are researching Geometric Deep Learning or Energy-Efficient Spiking Transformers, **Transformer 3** represents the state-of-the-art for this framework.

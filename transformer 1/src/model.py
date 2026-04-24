@@ -125,8 +125,8 @@ class TransformerLanguageModel(nn.Module):
         if targets is not None:
             # Flatten to calculate cross-entropy simpler
             B, T, C = logits.size()
-            logits_flat = logits.view(B * T, C)
-            targets_flat = targets.view(B * T)
+            logits_flat = logits.reshape(B * T, C)
+            targets_flat = targets.reshape(B * T)
             loss = F.cross_entropy(logits_flat, targets_flat)
             
         return logits, loss
