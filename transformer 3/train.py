@@ -7,10 +7,20 @@ from src.model import TransformerLanguageModel
 from src.dataset import Tokenizer, WikiTextDataset
 
 # ==========================================
-# HARDENED TRAINING: Adaptive Hybrid (ASLT)
+# PHASE 5: RESEARCH-GRADE TRAINING (TURBO)
 # ==========================================
 
+def get_lr_scheduler(optimizer, warmup_steps, total_steps):
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1, warmup_steps))
+        # Cosine decay
+        progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
 def main():
+    # Final Research Config
     embed_dim = 256
     num_heads = 4
     num_layers = 4
@@ -20,11 +30,14 @@ def main():
 
     learning_rate = 3e-4
     epochs = 1
-    eval_iters = 100
+    total_steps = 10000 # We'll do a final 10k test
+    warmup_steps = 1000
+    
+    eval_iters = 200
     log_interval = 50
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # Enable AMP for speed
+    # Speed Optim: AMP FP16
     use_amp = device == 'cuda'
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
@@ -34,7 +47,7 @@ def main():
     vocab_path = os.path.join('checkpoints', 'vocab.pkl')
     checkpoint_path = os.path.join('checkpoints', 'best_model.pt')
 
-    print(f"Using device: {device} | AMP: {use_amp}")
+    print(f"Starting ASLT-Turbo Research Run | Device: {device}")
 
     if os.path.exists(vocab_path):
         tokenizer = Tokenizer(max_vocab_size=max_vocab_size)
@@ -46,8 +59,8 @@ def main():
 
     train_dataset = WikiTextDataset(train_path, tokenizer, seq_len=seq_len)
     valid_dataset = WikiTextDataset(valid_path, tokenizer, seq_len=seq_len)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
 
     model = TransformerLanguageModel(
         vocab_size=len(tokenizer.stoi),
@@ -57,26 +70,28 @@ def main():
         seq_len=seq_len
     )
     
-    # Resume Logic
-    if os.path.exists(checkpoint_path):
-        print(f"Resuming from {checkpoint_path}...")
-        model.load_state_dict(torch.load(checkpoint_path, map_location=device))
-        
     model.to(device)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Model created. Total trainable parameters: {num_params / 1e6:.2f} M")
+    print(f"Model Parameters: {num_params / 1e6:.2f} M (Weight Tied)")
 
-    # RiemannianAdam is REQUIRED for ASLT manifold params
+    # Riemannian Optimizer
     optimizer = geoopt.optim.RiemannianAdam(model.parameters(), lr=learning_rate, stabilize=10)
+    scheduler = get_lr_scheduler(optimizer, warmup_steps, total_steps)
+
+    # FRESH START for the research benchmark
+    if os.path.exists(checkpoint_path):
+        os.remove(checkpoint_path)
 
     best_val_loss = float('inf')
 
-    print("Starting training...")
+    print("Training...")
     model.train()
+    step = 0
     for epoch in range(epochs):
         for batch_idx, (x, y) in enumerate(train_loader):
+            if step >= total_steps: break
+            
             x, y = x.to(device), y.to(device)
-
             optimizer.zero_grad(set_to_none=True)
 
             with torch.cuda.amp.autocast(enabled=use_amp):
@@ -84,36 +99,40 @@ def main():
 
             scaler.scale(loss).backward()
             
-            # Gradient Clipping
+            # RESEARCH UPGRADE: Tight Gradient Clipping for hyperbolic stability
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             scaler.step(optimizer)
             scaler.update()
+            scheduler.step()
 
-            if batch_idx % log_interval == 0:
-                print(f"Epoch {epoch} | Batch {batch_idx:5d} | Train Loss: {loss.item():.4f}")
+            if step % log_interval == 0:
+                curr_lr = scheduler.get_last_lr()[0]
+                print(f"Step {step:5d} | Loss {loss.item():.4f} | LR {curr_lr:.2e}")
 
-            if batch_idx > 0 and batch_idx % eval_iters == 0:
+            if step > 0 and step % eval_iters == 0:
                 model.eval()
-                val_losses = []
+                v_losses = []
                 with torch.no_grad():
-                    for v_idx, (vx, vy) in enumerate(valid_loader):
-                        if v_idx >= 50: break
+                    for i, (vx, vy) in enumerate(valid_loader):
+                        if i >= 50: break
                         vx, vy = vx.to(device), vy.to(device)
                         with torch.cuda.amp.autocast(enabled=use_amp):
                             _, v_loss = model(vx, targets=vy)
-                        val_losses.append(v_loss.item())
-
-                avg_val_loss = sum(val_losses) / len(val_losses)
-                print(f"---> Eval at {batch_idx}: Val Loss {avg_val_loss:.4f}")
-
-                if avg_val_loss < best_val_loss:
-                    best_val_loss = avg_val_loss
+                        v_losses.append(v_loss.item())
+                
+                avg_v = sum(v_losses) / len(v_losses)
+                print(f"\n---> Eval at step {step}: Val Loss {avg_v:.4f} <---")
+                
+                if avg_v < best_val_loss:
+                    best_val_loss = avg_v
                     torch.save(model.state_dict(), checkpoint_path)
                 model.train()
+            
+            step += 1
 
-    print("Training complete!")
+    print("Success. Final 10k Research Run Complete.")
 
 if __name__ == "__main__":
     main()
