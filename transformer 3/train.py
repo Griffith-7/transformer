@@ -7,20 +7,18 @@ from src.model import TransformerLanguageModel
 from src.dataset import Tokenizer, WikiTextDataset
 
 # ==========================================
-# PHASE 5: RESEARCH-GRADE TRAINING (TURBO)
+# PHASE 5: PROFESSIONAL RESEARCH TRAINING
 # ==========================================
 
 def get_lr_scheduler(optimizer, warmup_steps, total_steps):
     def lr_lambda(current_step):
         if current_step < warmup_steps:
             return float(current_step) / float(max(1, warmup_steps))
-        # Cosine decay
         progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
         return 0.5 * (1.0 + math.cos(math.pi * progress))
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 def main():
-    # Final Research Config
     embed_dim = 256
     num_heads = 4
     num_layers = 4
@@ -30,16 +28,16 @@ def main():
 
     learning_rate = 3e-4
     epochs = 1
-    total_steps = 10000 # We'll do a final 10k test
+    total_steps = 10000
     warmup_steps = 1000
     
     eval_iters = 200
     log_interval = 50
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # Speed Optim: AMP FP16
+    # MODERN API: torch.amp
     use_amp = device == 'cuda'
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
 
     data_dir = os.path.join('data', 'wikitext-103')
     train_path = os.path.join(data_dir, 'wiki.train.tokens')
@@ -47,7 +45,7 @@ def main():
     vocab_path = os.path.join('checkpoints', 'vocab.pkl')
     checkpoint_path = os.path.join('checkpoints', 'best_model.pt')
 
-    print(f"Starting ASLT-Turbo Research Run | Device: {device}")
+    print(f"Starting ASLT-Professional Run | Device: {device} | AMP: {use_amp}")
 
     if os.path.exists(vocab_path):
         tokenizer = Tokenizer(max_vocab_size=max_vocab_size)
@@ -71,20 +69,12 @@ def main():
     )
     
     model.to(device)
-    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Model Parameters: {num_params / 1e6:.2f} M (Weight Tied)")
-
-    # Riemannian Optimizer
     optimizer = geoopt.optim.RiemannianAdam(model.parameters(), lr=learning_rate, stabilize=10)
     scheduler = get_lr_scheduler(optimizer, warmup_steps, total_steps)
 
-    # FRESH START for the research benchmark
-    if os.path.exists(checkpoint_path):
-        os.remove(checkpoint_path)
-
     best_val_loss = float('inf')
 
-    print("Training...")
+    print(f"Training Model: {sum(p.numel() for p in model.parameters())/1e6:.2f} M params")
     model.train()
     step = 0
     for epoch in range(epochs):
@@ -94,22 +84,18 @@ def main():
             x, y = x.to(device), y.to(device)
             optimizer.zero_grad(set_to_none=True)
 
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            with torch.amp.autocast('cuda', enabled=use_amp):
                 logits, loss = model(x, targets=y)
 
             scaler.scale(loss).backward()
-            
-            # RESEARCH UPGRADE: Tight Gradient Clipping for hyperbolic stability
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
 
             if step % log_interval == 0:
-                curr_lr = scheduler.get_last_lr()[0]
-                print(f"Step {step:5d} | Loss {loss.item():.4f} | LR {curr_lr:.2e}")
+                print(f"Step {step:5d} | Loss {loss.item():.4f} | LR {scheduler.get_last_lr()[0]:.2e}")
 
             if step > 0 and step % eval_iters == 0:
                 model.eval()
@@ -118,21 +104,25 @@ def main():
                     for i, (vx, vy) in enumerate(valid_loader):
                         if i >= 50: break
                         vx, vy = vx.to(device), vy.to(device)
-                        with torch.cuda.amp.autocast(enabled=use_amp):
+                        with torch.amp.autocast('cuda', enabled=use_amp):
                             _, v_loss = model(vx, targets=vy)
                         v_losses.append(v_loss.item())
                 
                 avg_v = sum(v_losses) / len(v_losses)
-                print(f"\n---> Eval at step {step}: Val Loss {avg_v:.4f} <---")
+                print(f"---> Eval at step {step}: Val Loss {avg_v:.4f}")
                 
                 if avg_v < best_val_loss:
                     best_val_loss = avg_v
-                    torch.save(model.state_dict(), checkpoint_path)
+                    checkpoint = {
+                        'model_state_dict': model.state_dict(),
+                        'config': model.config, # SMART: Save the architecture config
+                        'tokenizer_stoi': tokenizer.stoi
+                    }
+                    torch.save(checkpoint, checkpoint_path)
                 model.train()
-            
             step += 1
 
-    print("Success. Final 10k Research Run Complete.")
+    print("Success. Professional Grade Model Training Complete.")
 
 if __name__ == "__main__":
     main()

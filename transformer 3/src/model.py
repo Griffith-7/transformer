@@ -5,13 +5,11 @@ from torch.nn import functional as F
 import geoopt
 
 # ========================================================
-# PHASE 5: ADAPTIVE HYPERBOLIC TURBO (AHT) - STABLE
+# PHASE 5: ADAPTIVE HYPERBOLIC TURBO (AHT) - PROFESSIONAL
 # ========================================================
-# RESEARCH-GRADE UPGRADES:
-# 1. Minkowski Inner Product (O(T^2) Speedup)
-# 2. Learnable Curvature (k) per Head (Softplus stabilized)
-# 3. L2-Normalization Pre-Projection (Vanishing Gradient Fix)
-# 4. Corrected Spike Causal Mask (diagonal=0)
+# SAFETY: 
+# All Hyperbolic operations are forced into FP32 (Full Precision)
+# to prevent NaNs that occur in low-precision (FP16) manifolds.
 # ========================================================
 
 class SurrogateSpike(torch.autograd.Function):
@@ -43,31 +41,22 @@ class AdaptiveGeometryAttention(nn.Module):
         self.qkv_proj = nn.Linear(embed_dim, 3 * embed_dim)
         self.out_proj = nn.Linear(embed_dim, embed_dim)
         
-        # SNN Spike Controls
         self.importance_net = nn.Linear(embed_dim, 1)
         self.spike_threshold = nn.Parameter(torch.tensor(0.5))
-        
-        # Adaptive Blending
         self.alpha_net = nn.Linear(embed_dim, num_heads)
-        
-        # RESEARCH UPGRADE: Learnable Curvature per head
-        # Initializing near k=1.0 using softplus(0.5413) approx 1.0
         self.log_k = nn.Parameter(torch.full((num_heads,), 0.54))
-        
-        # RESEARCH UPGRADE: Learnable QK Scale (Stability)
         self.qk_scale = nn.Parameter(torch.tensor(0.1))
         
         self.manifold = geoopt.Lorentz(k=1.0)
-        
         self.attn_dropout = nn.Dropout(dropout)
         self.resid_dropout = nn.Dropout(dropout)
         
     def forward(self, x, mask=None):
         B, T, C = x.size()
         
-        # 1. SPIKE CALCULATION
+        # 1. SPIKE CALCULATION (Causal Mask)
         importance = torch.sigmoid(self.importance_net(x)) 
-        causal_mask = torch.tril(torch.ones_like(importance, dtype=torch.bool), diagonal=0)
+        causal_mask = torch.tril(torch.ones_like(importance, dtype=torch.bool))
         importance_masked = importance.masked_fill(~causal_mask, 0.0)
         spikes = SurrogateSpike.apply(importance_masked, self.spike_threshold) 
         spike_mask = spikes.view(B, 1, T, 1) 
@@ -83,34 +72,36 @@ class AdaptiveGeometryAttention(nn.Module):
         # A. EUCLIDEAN PATH
         scores_euclid = torch.matmul(q, k_vec.transpose(-2, -1)) / math.sqrt(self.head_dim)
         
-        # B. LORENTZ PATH (Speedup)
-        # SPEED LIMITER: Clamp scale to prevent exponential overflow
-        # Soft-clamp qk_scale to max 1.0
-        safe_scale = torch.sigmoid(self.qk_scale) * 1.5 
-        
-        q_norm = F.normalize(q, dim=-1) * safe_scale
-        k_norm = F.normalize(k_vec, dim=-1) * safe_scale
-        
-        q_hyp = self.manifold.expmap0(q_norm)
-        k_hyp = self.manifold.expmap0(k_norm)
-        
-        # Minkowski Inner Product: -q0*k0 + q_spatial @ k_spatial^T
-        q_time, q_space = q_hyp[..., 0:1], q_hyp[..., 1:]
-        k_time, k_space = k_hyp[..., 0:1], k_hyp[..., 1:]
-        
-        inner_product = -torch.matmul(q_time, k_time.transpose(-2, -1)) + \
-                         torch.matmul(q_space, k_space.transpose(-2, -1))
-        
-        # STABILITY: Use softplus for curvature to avoid k=0
-        curv_k = F.softplus(self.log_k).view(1, self.num_heads, 1, 1) + 1e-6
-        
-        # STABILITY: Clamp for acosh domain [1.0 + eps, inf]
-        minkowski_dot = -inner_product
-        minkowski_dot = torch.clamp(minkowski_dot, min=1.0 + 1e-6)
-        
-        # Distance calculation
-        dist = torch.acosh(minkowski_dot)
-        scores_hyper = -(dist ** 2) / curv_k
+        # B. LORENTZ PATH (SAFETY: Force FP32)
+        # Manifolds are unstable in FP16 (AMP). We force FP32 for these 10 lines.
+        with torch.amp.autocast('cuda', enabled=False):
+            # Convert to FP32
+            q_32 = q.float()
+            k_32 = k_vec.float()
+            
+            safe_scale = torch.sigmoid(self.qk_scale) * 1.5 
+            q_norm = F.normalize(q_32, dim=-1) * safe_scale
+            k_norm = F.normalize(k_32, dim=-1) * safe_scale
+            
+            q_hyp = self.manifold.expmap0(q_norm)
+            k_hyp = self.manifold.expmap0(k_norm)
+            
+            q_time, q_space = q_hyp[..., 0:1], q_hyp[..., 1:]
+            k_time, k_space = k_hyp[..., 0:1], k_hyp[..., 1:]
+            
+            inner_product = -torch.matmul(q_time, k_time.transpose(-2, -1)) + \
+                             torch.matmul(q_space, k_space.transpose(-2, -1))
+            
+            curv_k = (F.softplus(self.log_k).view(1, self.num_heads, 1, 1) + 1e-6).float()
+            
+            minkowski_dot = -inner_product
+            minkowski_dot = torch.clamp(minkowski_dot, min=1.0 + 1e-6)
+            
+            dist_sq = torch.acosh(minkowski_dot) ** 2
+            scores_hyper = -(dist_sq) / curv_k
+            
+            # Cast back to the original model precision (could be FP16)
+            scores_hyper = scores_hyper.to(q.dtype)
         
         # 4. ADAPTIVE GEOMETRY MERGE
         scores = (1 - alpha) * scores_euclid + alpha * scores_hyper
@@ -123,7 +114,6 @@ class AdaptiveGeometryAttention(nn.Module):
         
         # 5. SPIKE GATING
         attn_weights = attn_weights * spike_mask
-        
         attn_weights = self.attn_dropout(attn_weights)
         y = torch.matmul(attn_weights, v)
         
@@ -164,6 +154,16 @@ class TransformerLanguageModel(nn.Module):
         super().__init__()
         self.seq_len = seq_len
         self.vocab_size = vocab_size
+        
+        # Save config for easier checkpoint loading
+        self.config = {
+            'vocab_size': vocab_size,
+            'embed_dim': embed_dim,
+            'num_heads': num_heads,
+            'num_layers': num_layers,
+            'seq_len': seq_len,
+            'dropout': dropout
+        }
         
         self.token_embedding = nn.Embedding(vocab_size, embed_dim)
         self.position_embedding = nn.Embedding(seq_len, embed_dim)

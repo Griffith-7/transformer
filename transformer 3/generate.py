@@ -5,35 +5,32 @@ from src.dataset import Tokenizer
 
 def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    vocab_path = os.path.join('checkpoints', 'vocab.pkl')
     model_path = os.path.join('checkpoints', 'best_model.pt')
     
     if not os.path.exists(model_path):
         print("No trained model found. Run train.py first!")
         return
     
+    print(f"Loading smart checkpoint from {model_path}...")
+    checkpoint = torch.load(model_path, map_location=device)
+    
+    # SMART: Auto-configure model from checkpoint config
+    config = checkpoint['config']
+    print(f"Auto-Configured: dim={config['embed_dim']}, layers={config['num_layers']}, heads={config['num_heads']}")
+    
     tokenizer = Tokenizer(max_vocab_size=20000)
-    tokenizer.load(vocab_path)
+    tokenizer.stoi = checkpoint['tokenizer_stoi']
+    tokenizer.itos = {i: s for s, i in tokenizer.stoi.items()}
     
-    # HARDENED: dimension 256
-    model = TransformerLanguageModel(
-        vocab_size=len(tokenizer.stoi),
-        embed_dim=256,
-        num_heads=4,
-        num_layers=4,
-        seq_len=128
-    )
-    
-    print(f"Loading checkpoint from {model_path}...")
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    model = TransformerLanguageModel(**config)
+    model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()
     
     print("\nGeneration Ready! Type a prompt Below:")
     while True:
         prompt = input("\nPrompt: ")
-        if prompt.lower() == 'quit': break
+        if prompt.lower() in ['quit', 'exit']: break
         
         encoded = tokenizer.encode(prompt)
         idx = torch.tensor([encoded], dtype=torch.long, device=device)
