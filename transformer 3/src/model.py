@@ -62,7 +62,7 @@ class AdaptiveGeometryAttention(nn.Module):
         # STAGE 1: SPIKE SURPRISE (The Energy Gate)
         # ==========================================
         importance = torch.sigmoid(self.importance_net(x)) 
-        causal_mask = torch.tril(torch.ones_like(importance, dtype=torch.bool), diagonal=-1)
+        causal_mask = torch.tril(torch.ones_like(importance, dtype=torch.bool), diagonal=0)
         importance_masked = importance.masked_fill(~causal_mask, 0.0)
         
         # Use SurrogateSpike so the gate actually learns!
@@ -167,6 +167,9 @@ class TransformerLanguageModel(nn.Module):
         
         self.ln_f = nn.LayerNorm(embed_dim)
         self.lm_head = nn.Linear(embed_dim, vocab_size, bias=False)
+        
+        # Weight tying
+        self.token_embedding.weight = self.lm_head.weight
         
         self.apply(self._init_weights)
 

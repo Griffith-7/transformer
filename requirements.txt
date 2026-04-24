@@ -1,0 +1,5 @@
+geoopt
+torch
+numpy
+tqdm
+pickle5; python_version < '3.8'

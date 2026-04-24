@@ -13,43 +13,35 @@ def main():
         print("No trained model found. Run train.py first!")
         return
     
-    print("Loading vocabulary...")
     tokenizer = Tokenizer(max_vocab_size=20000)
     tokenizer.load(vocab_path)
     
-    print("Loading model...")
+    # HARDENED: dimension 256
     model = TransformerLanguageModel(
         vocab_size=len(tokenizer.stoi),
-        embed_dim=64,
+        embed_dim=256,
         num_heads=4,
         num_layers=4,
         seq_len=128
     )
+    
+    print(f"Loading checkpoint from {model_path}...")
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
     
-    num_params = sum(p.numel() for p in model.parameters())
-    print(f"Model loaded ({num_params / 1e6:.2f} M parameters)")
-    
-    print("\nGenerating text... (type 'quit' to exit)")
+    print("\nGeneration Ready! Type a prompt Below:")
     while True:
-        prompt = input("\nEnter prompt: ")
-        if prompt.lower() == 'quit':
-            break
+        prompt = input("\nPrompt: ")
+        if prompt.lower() == 'quit': break
         
         encoded = tokenizer.encode(prompt)
-        if not encoded:
-            print("Invalid input!")
-            continue
-        
         idx = torch.tensor([encoded], dtype=torch.long, device=device)
         
         with torch.no_grad():
             generated = model.generate(idx, max_new_tokens=100, temperature=0.8)
         
-        output = tokenizer.decode(generated[0].tolist())
-        print(f"\nOutput: {output}")
+        print(f"\nResponse: {tokenizer.decode(generated[0].tolist())}")
 
 if __name__ == "__main__":
     main()
