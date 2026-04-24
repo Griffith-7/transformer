@@ -32,7 +32,7 @@ def main():
 
     model = TransformerLanguageModel(vocab_size=len(tokenizer.stoi), embed_dim=embed_dim, num_heads=num_heads, num_layers=num_layers, seq_len=seq_len)
     model.to(device)
-    optimizer = geoopt.optim.RiemannianAdam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     best_val_loss = float('inf')
     print(f"Training Model: {sum(p.numel() for p in model.parameters())/1e6:.2f} M params")

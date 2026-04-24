@@ -69,7 +69,8 @@ def main():
     )
     
     model.to(device)
-    optimizer = geoopt.optim.RiemannianAdam(model.parameters(), lr=learning_rate, stabilize=10)
+    # AdamW is used because model weights are Euclidean.
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = get_lr_scheduler(optimizer, warmup_steps, total_steps)
 
     best_val_loss = float('inf')
