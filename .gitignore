@@ -1,0 +1,24 @@
+# Dataset
+**/data/
+**/wikidata/
+**/wikitext-103/
+
+# Checkpoints and models
+**/checkpoints/*.pt
+**/checkpoints/*.pkl
+**/checkpoints/*.bin
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+.vscode/
+.idea/
+
+# Benchmark results
+grand_benchmark.csv
+benchmark_all.py
