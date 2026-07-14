@@ -1,13 +1,12 @@
 """Unified TransformerLanguageModel wrapping all three attention variants."""
-import math
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from .models.standard import TransformerBlock as StandardBlock
-from .models.spiking_lorentz import TransformerBlock as SpikingLorentzBlock
 from .models.adaptive import TransformerBlock as AdaptiveBlock
+from .models.spiking_lorentz import TransformerBlock as SpikingLorentzBlock
+from .models.standard import TransformerBlock as StandardBlock
 
 BLOCK_MAP = {
     "standard": StandardBlock,

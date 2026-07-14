@@ -1,5 +1,4 @@
 """Text generation from a trained checkpoint."""
-import os
 
 import torch
 
@@ -32,8 +31,12 @@ def generate(model, tokenizer_stoi, prompt, *, max_new_tokens=100, temperature=0
         Generated token indices as a 1-D tensor.
     """
     itos = {i: s for s, i in tokenizer_stoi.items()}
-    encode = lambda text: [tokenizer_stoi.get(w, tokenizer_stoi.get("<unk>", 1)) for w in text.split()]
-    decode = lambda indices: " ".join(itos.get(idx, "<unk>") for idx in indices)
+
+    def encode(text):
+        return [tokenizer_stoi.get(w, tokenizer_stoi.get("<unk>", 1)) for w in text.split()]
+
+    def decode(indices):
+        return " ".join(itos.get(idx, "<unk>") for idx in indices)
 
     if device is None:
         device = next(model.parameters()).device
@@ -49,7 +52,9 @@ def interactive(model_path, variant="standard"):
     """Start an interactive generation session."""
     model, stoi, device = load_model(model_path, variant=variant)
     itos = {i: s for s, i in stoi.items()}
-    decode = lambda indices: " ".join(itos.get(idx, "<unk>") for idx in indices)
+
+    def decode(indices):
+        return " ".join(itos.get(idx, "<unk>") for idx in indices)
 
     print("\nGeneration Ready! Type a prompt below (or 'quit' to exit):")
     while True:

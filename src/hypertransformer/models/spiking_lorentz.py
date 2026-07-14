@@ -1,9 +1,11 @@
 """Spiking Lorentz attention (Phase 2) — hyperbolic manifold + surrogate gradient spiking."""
+
 import math
+
+import geoopt
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-import geoopt
 
 from .spike import SurrogateSpike
 
@@ -31,14 +33,15 @@ class SpikingLorentzAttention(nn.Module):
         qkv = qkv.reshape(B, T, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch.amp.autocast("cuda", enabled=False):
             q_32, k_32 = q.float(), k.float()
             q_hyp = self.manifold.expmap0(q_32)
             k_hyp = self.manifold.expmap0(k_32)
             q_time, q_space = q_hyp[..., 0:1], q_hyp[..., 1:]
             k_time, k_space = k_hyp[..., 0:1], k_hyp[..., 1:]
-            inner_product = -torch.matmul(q_time, k_time.transpose(-2, -1)) + \
-                             torch.matmul(q_space, k_space.transpose(-2, -1))
+            inner_product = -torch.matmul(q_time, k_time.transpose(-2, -1)) + torch.matmul(
+                q_space, k_space.transpose(-2, -1)
+            )
             minkowski_dot = torch.clamp(-inner_product, min=1.0 + 1e-6)
             scores = -(torch.acosh(minkowski_dot) ** 2) / math.sqrt(self.head_dim)
             scores = scores.to(q.dtype)
@@ -47,7 +50,7 @@ class SpikingLorentzAttention(nn.Module):
             mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=x.device)).view(1, 1, T, T)
         self_attn = torch.eye(T, dtype=torch.bool, device=x.device).view(1, 1, T, T)
         combined_mask = (mask & (spike_mask > 0)) | self_attn
-        scores = scores.masked_fill(~combined_mask, float('-inf'))
+        scores = scores.masked_fill(~combined_mask, float("-inf"))
         attn_weights = F.softmax(scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
         y = torch.matmul(attn_weights, v)
@@ -63,7 +66,7 @@ class FeedForward(nn.Module):
             nn.Linear(embed_dim, 4 * embed_dim),
             nn.GELU(),
             nn.Linear(4 * embed_dim, embed_dim),
-            nn.Dropout(dropout)
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):

@@ -1,4 +1,5 @@
 """Surrogate gradient function for differentiable spiking neurons."""
+
 import torch
 
 

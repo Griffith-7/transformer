@@ -1,4 +1,5 @@
 """Training loop with cosine LR schedule, AMP, gradient clipping, and checkpointing."""
+
 import math
 import os
 import time
@@ -150,8 +151,7 @@ def train(
     recent = train_losses[-50:] if train_losses else [float("inf")]
     ppl = math.exp(sum(recent) / len(recent))
     print(
-        f"\n  Done in {elapsed:.1f}s | "
-        f"Final loss: {sum(recent) / len(recent):.4f} | PPL: {ppl:.2f}"
+        f"\n  Done in {elapsed:.1f}s | Final loss: {sum(recent) / len(recent):.4f} | PPL: {ppl:.2f}"
     )
     return {
         "final_loss": sum(recent) / len(recent),

@@ -1,6 +1,5 @@
 """Standard Euclidean multi-head self-attention (Phase 1)."""
-import math
-import torch
+
 import torch.nn as nn
 from torch.nn import functional as F
 
@@ -23,10 +22,12 @@ class MultiHeadAttention(nn.Module):
         q, k, v = qkv[0], qkv[1], qkv[2]
         is_causal = mask is None
         y = F.scaled_dot_product_attention(
-            q, k, v,
+            q,
+            k,
+            v,
             attn_mask=mask,
             dropout_p=self.attn_dropout.p if self.training else 0,
-            is_causal=is_causal
+            is_causal=is_causal,
         )
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.resid_dropout(self.out_proj(y))
@@ -40,7 +41,7 @@ class FeedForward(nn.Module):
             nn.Linear(embed_dim, 4 * embed_dim),
             nn.GELU(),
             nn.Linear(4 * embed_dim, embed_dim),
-            nn.Dropout(dropout)
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):

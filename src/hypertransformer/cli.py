@@ -1,4 +1,5 @@
 """CLI entry point for hypertransformer."""
+
 import argparse
 import sys
 
@@ -67,7 +68,6 @@ def main():
 
 def _cmd_train(args):
     import os
-    import pickle
 
     import torch
 
@@ -114,19 +114,18 @@ def _cmd_train(args):
 
 def _cmd_generate(args):
     from .generate import interactive
+
     interactive(args.checkpoint, variant=args.variant)
 
 
 def _cmd_compare(args):
     import math
     import os
-    import pickle
 
     import torch
 
     from .data import Tokenizer
     from .model import TransformerLanguageModel
-    from .generate import generate as gen_text
     from .train import train
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -138,7 +137,10 @@ def _cmd_compare(args):
     results = {}
 
     for v in variants:
-        model_cls = lambda _v=v, **kw: TransformerLanguageModel(variant=_v, **kw)
+
+        def model_cls(_v=v, **kw):
+            return TransformerLanguageModel(variant=_v, **kw)
+
         ckpt_dir = os.path.join("checkpoints", v)
         r = train(
             model_cls,

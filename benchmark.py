@@ -2,23 +2,24 @@
 
 Trains T1/T2/T3, records loss curves and throughput, saves plots to benchmarks/.
 """
+
+import json
+import math
 import os
 import sys
-import math
-import time
-import json
 
-import torch
 import matplotlib
+import torch
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from hypertransformer.data import Tokenizer, WikiTextDataset
+from hypertransformer.data import Tokenizer
 from hypertransformer.model import TransformerLanguageModel
-from hypertransformer.train import train, cosine_lr
+from hypertransformer.train import train
 
 # ── Config ─────────────────────────────────────────────────────────────
 EMBED_DIM = 128
@@ -37,7 +38,11 @@ VALID_FILE = os.path.join(DATA_DIR, "wiki.valid.tokens")
 BENCH_DIR = "benchmarks"
 
 VARIANTS = ["standard", "spiking_lorentz", "adaptive"]
-LABELS = {"standard": "T1 Standard", "spiking_lorentz": "T2 Spiking Lorentz", "adaptive": "T3 Adaptive Hybrid"}
+LABELS = {
+    "standard": "T1 Standard",
+    "spiking_lorentz": "T2 Spiking Lorentz",
+    "adaptive": "T3 Adaptive Hybrid",
+}
 COLORS = {"standard": "#2196F3", "spiking_lorentz": "#FF9800", "adaptive": "#4CAF50"}
 
 
@@ -49,11 +54,12 @@ def run_benchmarks():
 
     results = {}
     for v in VARIANTS:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  Benchmarking: {LABELS[v]}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
-        model_cls = lambda _v=v, **kw: TransformerLanguageModel(variant=_v, **kw)
+        def model_cls(_v=v, **kw):
+            return TransformerLanguageModel(variant=_v, **kw)
 
         r = train(
             model_cls,
@@ -104,7 +110,7 @@ def generate_charts(results):
         smoothed = []
         for i in range(len(losses)):
             start = max(0, i - window)
-            smoothed.append(sum(losses[start:i + 1]) / (i - start + 1))
+            smoothed.append(sum(losses[start : i + 1]) / (i - start + 1))
         ax.plot(smoothed, label=LABELS[v], color=COLORS[v], linewidth=2)
     ax.set_xlabel("Training Step", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
@@ -119,15 +125,22 @@ def generate_charts(results):
     bar_colors = [COLORS[v] for v in VARIANTS]
     bars = ax.bar(names, val_losses, color=bar_colors, edgecolor="white", linewidth=1.5)
     for bar, val in zip(bars, val_losses):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
-                f"{val:.3f}", ha="center", va="bottom", fontsize=11, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.02,
+            f"{val:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
+        )
     ax.set_ylabel("Best Validation Loss", fontsize=12)
     ax.set_title("Validation Loss Comparison", fontsize=14, fontweight="bold")
     ax.set_ylim(0, max(val_losses) * 1.2)
 
     # ── 3. Throughput Comparison ──────────────────────────────────────
     ax = axes[2]
-    times = [results[v]["elapsed"] for v in VARIANTS]
+    [results[v]["elapsed"] for v in VARIANTS]
     # Calculate approximate throughput (tokens/sec estimate)
     throughputs = []
     for v in VARIANTS:
@@ -138,8 +151,15 @@ def generate_charts(results):
 
     bars = ax.bar(names, throughputs, color=bar_colors, edgecolor="white", linewidth=1.5)
     for bar, val in zip(bars, throughputs):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
-                f"{val:.1f}k", ha="center", va="bottom", fontsize=11, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.5,
+            f"{val:.1f}k",
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
+        )
     ax.set_ylabel("Throughput (k tokens/sec)", fontsize=12)
     ax.set_title("Training Throughput", fontsize=14, fontweight="bold")
     ax.set_ylim(0, max(throughputs) * 1.3)
@@ -157,8 +177,15 @@ def generate_charts(results):
 
     bars = ax.bar(names, ppls, color=bar_colors, edgecolor="white", linewidth=1.5)
     for bar, val in zip(bars, ppls):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2,
-                f"{val:.2f}", ha="center", va="bottom", fontsize=12, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.2,
+            f"{val:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=12,
+            fontweight="bold",
+        )
     ax.set_ylabel("Perplexity (lower is better)", fontsize=12)
     ax.set_title("Final Perplexity Comparison", fontsize=14, fontweight="bold")
     ax.set_ylim(0, max(ppls) * 1.3)

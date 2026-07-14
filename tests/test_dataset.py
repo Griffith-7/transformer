@@ -1,11 +1,12 @@
 """Tests for dataset.py and Tokenizer across all three transformer versions."""
+
 import os
 import sys
-import tempfile
+
 import pytest
 import torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'transformer 1'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "transformer 1"))
 from src.dataset import Tokenizer, WikiTextDataset
 
 
@@ -46,7 +47,9 @@ class TestTokenizer:
         tok.build_vocab(tiny_corpus)
         vocab_size = len(tok.stoi)
         for token, idx in tok.stoi.items():
-            assert 0 <= idx < vocab_size, f"Token '{token}' has index {idx} >= vocab_size {vocab_size}"
+            assert 0 <= idx < vocab_size, (
+                f"Token '{token}' has index {idx} >= vocab_size {vocab_size}"
+            )
 
     def test_encode_decode_roundtrip(self, tiny_corpus):
         tok = Tokenizer(max_vocab_size=100)
@@ -114,6 +117,7 @@ class TestWikiTextDataset:
 
     def test_dataloader_batch(self, tiny_corpus):
         from torch.utils.data import DataLoader
+
         tok = Tokenizer(max_vocab_size=100)
         tok.build_vocab(tiny_corpus)
         ds = WikiTextDataset(tiny_corpus, tok, seq_len=16)

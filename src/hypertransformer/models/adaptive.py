@@ -1,9 +1,11 @@
 """Adaptive Geometry Attention (Phase 3) — learnable curvature + Euclidean/hyperbolic blending."""
+
 import math
+
+import geoopt
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-import geoopt
 
 from .spike import SurrogateSpike
 
@@ -44,7 +46,7 @@ class AdaptiveGeometryAttention(nn.Module):
 
         scores_euclid = torch.matmul(q, k_vec.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch.amp.autocast("cuda", enabled=False):
             q_32 = q.float()
             k_32 = k_vec.float()
 
@@ -58,8 +60,9 @@ class AdaptiveGeometryAttention(nn.Module):
             q_time, q_space = q_hyp[..., 0:1], q_hyp[..., 1:]
             k_time, k_space = k_hyp[..., 0:1], k_hyp[..., 1:]
 
-            inner_product = -torch.matmul(q_time, k_time.transpose(-2, -1)) + \
-                             torch.matmul(q_space, k_space.transpose(-2, -1))
+            inner_product = -torch.matmul(q_time, k_time.transpose(-2, -1)) + torch.matmul(
+                q_space, k_space.transpose(-2, -1)
+            )
 
             curv_k = (F.softplus(self.log_k).view(1, self.num_heads, 1, 1) + 1e-6).float()
 
@@ -78,7 +81,7 @@ class AdaptiveGeometryAttention(nn.Module):
 
         self_attn = torch.eye(T, dtype=torch.bool, device=x.device).view(1, 1, T, T)
         combined_mask = (mask & (spike_mask > 0)) | self_attn
-        scores = scores.masked_fill(~combined_mask, float('-inf'))
+        scores = scores.masked_fill(~combined_mask, float("-inf"))
         attn_weights = F.softmax(scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
         y = torch.matmul(attn_weights, v)
@@ -96,7 +99,7 @@ class FeedForward(nn.Module):
             nn.Linear(embed_dim, 4 * embed_dim),
             nn.GELU(),
             nn.Linear(4 * embed_dim, embed_dim),
-            nn.Dropout(dropout)
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):
