@@ -11,7 +11,7 @@ def main():
         print("No trained model found. Run train.py first!")
         return
     
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint['config']
     
     tokenizer = Tokenizer()

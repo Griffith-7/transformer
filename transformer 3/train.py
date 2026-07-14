@@ -42,6 +42,7 @@ def main():
     data_dir = os.path.join('data', 'wikitext-103')
     train_path = os.path.join(data_dir, 'wiki.train.tokens')
     valid_path = os.path.join(data_dir, 'wiki.valid.tokens')
+    os.makedirs('checkpoints', exist_ok=True)
     vocab_path = os.path.join('checkpoints', 'vocab.pkl')
     checkpoint_path = os.path.join('checkpoints', 'best_model.pt')
 

@@ -12,13 +12,27 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
 .env
 .venv
 env/
 venv/
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # Benchmark results
 grand_benchmark.csv
 benchmark_all.py
+
+# OS
+.DS_Store
+Thumbs.db

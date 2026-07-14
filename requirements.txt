@@ -1,5 +1,4 @@
-geoopt
-torch
-numpy
-tqdm
-pickle5; python_version < '3.8'
+torch>=2.0
+geoopt>=0.5.0
+numpy>=1.24
+tqdm>=4.65

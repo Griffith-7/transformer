@@ -12,7 +12,7 @@ def main():
         return
     
     print(f"Loading smart checkpoint from {model_path}...")
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     
     # SMART: Auto-configure model from checkpoint config
     config = checkpoint['config']

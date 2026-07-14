@@ -25,7 +25,6 @@ class Tokenizer:
                 if not words:
                     continue
                 counter.update(words)
-                counter.update([self.eos_token])
                 
         # Keep most common words up to max_vocab_size - 3 (for special tokens)
         common_words = counter.most_common(self.max_vocab_size - 3)

@@ -37,10 +37,8 @@ class SpikingLorentzAttention(nn.Module):
     def forward(self, x, mask=None):
         B, T, C = x.size()
         importance = torch.sigmoid(self.surprise_net(x)) 
-        causal_mask = torch.tril(torch.ones_like(importance, dtype=torch.bool))
-        importance_masked = importance.masked_fill(~causal_mask, 0.0)
-        spikes = SurrogateSpike.apply(importance_masked, self.spike_threshold) 
-        spike_mask = spikes.view(B, 1, T, 1) 
+        spikes = SurrogateSpike.apply(importance, self.spike_threshold) 
+        spike_mask = spikes.view(B, 1, 1, T) 
         
         qkv = self.qkv_proj(x)
         qkv = qkv.reshape(B, T, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
@@ -58,9 +56,11 @@ class SpikingLorentzAttention(nn.Module):
             scores = scores.to(q.dtype)
 
         if mask is None: mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=x.device)).view(1, 1, T, T)
-        scores = scores.masked_fill(~mask, float('-inf'))
+        self_attn = torch.eye(T, dtype=torch.bool, device=x.device).view(1, 1, T, T)
+        combined_mask = (mask & (spike_mask > 0)) | self_attn
+        scores = scores.masked_fill(~combined_mask, float('-inf'))
         attn_weights = F.softmax(scores, dim=-1)
-        attn_weights = attn_weights * spike_mask
+        attn_weights = self.attn_dropout(attn_weights)
         y = torch.matmul(attn_weights, v)
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.resid_dropout(self.out_proj(y))

@@ -54,12 +54,10 @@ class AdaptiveGeometryAttention(nn.Module):
     def forward(self, x, mask=None):
         B, T, C = x.size()
         
-        # 1. SPIKE CALCULATION (Causal Mask)
+        # 1. SPIKE CALCULATION
         importance = torch.sigmoid(self.importance_net(x)) 
-        causal_mask = torch.tril(torch.ones_like(importance, dtype=torch.bool))
-        importance_masked = importance.masked_fill(~causal_mask, 0.0)
-        spikes = SurrogateSpike.apply(importance_masked, self.spike_threshold) 
-        spike_mask = spikes.view(B, 1, T, 1) 
+        spikes = SurrogateSpike.apply(importance, self.spike_threshold) 
+        spike_mask = spikes.view(B, 1, 1, T) 
         
         # 2. ADAPTIVE BLENDING
         alpha = torch.sigmoid(self.alpha_net(x)).transpose(1, 2).unsqueeze(-1)
@@ -73,9 +71,7 @@ class AdaptiveGeometryAttention(nn.Module):
         scores_euclid = torch.matmul(q, k_vec.transpose(-2, -1)) / math.sqrt(self.head_dim)
         
         # B. LORENTZ PATH (SAFETY: Force FP32)
-        # Manifolds are unstable in FP16 (AMP). We force FP32 for these 10 lines.
         with torch.amp.autocast('cuda', enabled=False):
-            # Convert to FP32
             q_32 = q.float()
             k_32 = k_vec.float()
             
@@ -100,7 +96,6 @@ class AdaptiveGeometryAttention(nn.Module):
             dist_sq = torch.acosh(minkowski_dot) ** 2
             scores_hyper = -(dist_sq) / curv_k
             
-            # Cast back to the original model precision (could be FP16)
             scores_hyper = scores_hyper.to(q.dtype)
         
         # 4. ADAPTIVE GEOMETRY MERGE
@@ -109,11 +104,12 @@ class AdaptiveGeometryAttention(nn.Module):
         if mask is None:
             mask = torch.tril(torch.ones(T, T, dtype=torch.bool, device=x.device)).view(1, 1, T, T)
         
-        scores = scores.masked_fill(~mask, float('-inf'))
+        self_attn = torch.eye(T, dtype=torch.bool, device=x.device).view(1, 1, T, T)
+        combined_mask = (mask & (spike_mask > 0)) | self_attn
+        scores = scores.masked_fill(~combined_mask, float('-inf'))
         attn_weights = F.softmax(scores, dim=-1)
         
-        # 5. SPIKE GATING
-        attn_weights = attn_weights * spike_mask
+        # 5. SPIKE GATING (already applied via -inf masking before softmax)
         attn_weights = self.attn_dropout(attn_weights)
         y = torch.matmul(attn_weights, v)
         
